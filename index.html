@@ -3,443 +3,639 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Inception Capital — AI Market Predictor</title>
+<title>Oracle — Market Intelligence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-/* ─── Reset & root ─── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
 :root {
-  --bg:      #04070f;
-  --bg1:     #060c18;
-  --bg2:     #09111f;
-  --bg3:     #0c1628;
-  --border:  #111e30;
-  --border2: #182a40;
-  --text:    #3d5570;
-  --text2:   #6a8aaa;
-  --text3:   #a0b8d0;
-  --white:   #c8daea;
-  --cyan:    #00d4ff;
-  --cyan2:   #007aad;
-  --green:   #00ff88;
-  --red:     #ff3355;
-  --gold:    #ffcc00;
-  --purple:  #9d6eff;
+  --bg:        #f9f7f4;
+  --bg1:       #ffffff;
+  --bg2:       #f3f1ee;
+  --bg3:       #ede9e4;
+  --border:    #e8e4df;
+  --border2:   #d9d4ce;
+  --text4:     #a09890;
+  --text3:     #7a7068;
+  --text2:     #4a4440;
+  --text1:     #1a1614;
+  --orange:    #d97706;
+  --orange-bg: #fef3c7;
+  --green:     #15803d;
+  --green-bg:  #dcfce7;
+  --red:       #b91c1c;
+  --red-bg:    #fee2e2;
+  --accent:    #c2601a;
+  --accent-soft: #f5e6d8;
+  --blue:      #1d4ed8;
+  --blue-bg:   #dbeafe;
+  --radius:    6px;
+  --radius2:   10px;
 }
 
 html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
-  color: var(--text3);
-  font-family: 'Rajdhani', sans-serif;
+  color: var(--text2);
+  font-family: 'Geist', sans-serif;
+  font-weight: 400;
   min-height: 100vh;
   overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-/* Scanlines */
-body::after {
-  content: '';
-  position: fixed; inset: 0;
-  background: repeating-linear-gradient(
-    0deg, transparent, transparent 3px,
-    rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
-}
-
-/* Subtle grid bg */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background-image:
-    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ─── Loader overlay ─── */
+/* ─── Loader ─── */
 #loader {
   position: fixed; inset: 0;
-  background: rgba(4,7,15,0.85);
+  background: rgba(249,247,244,0.9);
   display: none;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 18px;
-  z-index: 9998;
-  backdrop-filter: blur(4px);
+  gap: 16px;
+  z-index: 9999;
+  backdrop-filter: blur(8px);
 }
-.loader-ring {
-  width: 48px; height: 48px;
-  border: 2px solid var(--border2);
-  border-top-color: var(--cyan);
+.loader-dots {
+  display: flex; gap: 6px;
+}
+.loader-dot {
+  width: 6px; height: 6px;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  background: var(--accent);
+  animation: dotpulse 1.2s ease-in-out infinite;
+}
+.loader-dot:nth-child(2) { animation-delay: 0.2s; }
+.loader-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotpulse {
+  0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 .loader-txt {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  color: var(--text2);
-  letter-spacing: 2px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text4);
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ─── Header ─── */
 header {
-  position: relative; z-index: 10;
   background: var(--bg1);
   border-bottom: 1px solid var(--border);
-  padding: 10px 20px;
+  padding: 0 24px;
+  height: 56px;
   display: flex;
   align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 20px;
+  position: sticky; top: 0; z-index: 100;
 }
 
 .logo {
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 700;
-  font-size: 1.35rem;
-  letter-spacing: 4px;
-  color: var(--cyan);
-  text-shadow: 0 0 24px rgba(0,212,255,0.6);
-  white-space: nowrap;
-  user-select: none;
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.25rem;
+  color: var(--text1);
+  letter-spacing: -0.3px;
+  flex-shrink: 0;
 }
-.logo em { color: var(--text2); font-style: normal; font-weight: 300; }
+.logo em {
+  color: var(--accent);
+  font-style: italic;
+}
 
-.live-dot {
-  display: flex; align-items: center; gap: 6px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.68rem;
-  color: var(--text);
-  letter-spacing: 1px;
+.divider-v {
+  width: 1px; height: 20px;
+  background: var(--border2);
+  flex-shrink: 0;
 }
-.dot {
+
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text4);
+  letter-spacing: 0.5px;
+}
+.live-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  animation: livepulse 1.5s ease-in-out infinite;
+  animation: livepulse 2s ease-in-out infinite;
 }
 @keyframes livepulse {
-  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
-  50%      { opacity: 0.4; box-shadow: none; }
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
+.symbol-select-wrap {
+  position: relative;
+}
 select {
   background: var(--bg2);
-  border: 1px solid var(--border2);
-  color: var(--white);
-  padding: 6px 10px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  color: var(--text1);
+  padding: 6px 32px 6px 10px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
   outline: none;
-  transition: border-color 0.2s;
+  border-radius: var(--radius);
+  transition: border-color 0.15s, background 0.15s;
   appearance: none;
-  -webkit-appearance: none;
-  padding-right: 28px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7090'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a09890'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
 }
-select:focus { border-color: var(--cyan); }
-select option { background: var(--bg2); color: var(--white); }
+select:hover { border-color: var(--border2); background-color: var(--bg3); }
+select:focus { border-color: var(--accent); }
+select option { background: var(--bg1); color: var(--text1); }
 
 #status {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-  letter-spacing: 1px;
-  padding: 4px 10px;
-  border-radius: 2px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
 }
-.status-ok      { color: var(--green); }
-.status-loading { color: var(--gold);   animation: blink 1s infinite; }
-.status-ai      { color: var(--purple); animation: blink 0.6s infinite; }
-.status-error   { color: var(--red); background: rgba(255,51,85,0.08); }
-
-@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.status-ok      { color: var(--green); background: var(--green-bg); }
+.status-loading { color: var(--orange); background: var(--orange-bg); }
+.status-ai      { color: var(--blue); background: var(--blue-bg); }
+.status-error   { color: var(--red); background: var(--red-bg); }
 
 .ml-auto { margin-left: auto; }
 
 .btn {
-  background: transparent;
-  border: 1px solid var(--border2);
+  background: var(--bg1);
+  border: 1px solid var(--border);
   color: var(--text2);
-  padding: 6px 16px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: 2px;
+  padding: 6px 14px;
+  font-family: 'Geist', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  text-transform: uppercase;
+  border-radius: var(--radius);
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
 }
 .btn:hover {
-  border-color: var(--cyan);
-  color: var(--cyan);
-  box-shadow: 0 0 12px rgba(0,212,255,0.15);
+  border-color: var(--border2);
+  background: var(--bg2);
+  color: var(--text1);
 }
 .btn:active { transform: scale(0.97); }
+.btn svg { width: 13px; height: 13px; }
 
-/* ─── Price bar ─── */
-.price-bar {
-  position: relative; z-index: 10;
+/* ─── Price header ─── */
+.price-section {
   background: var(--bg1);
   border-bottom: 1px solid var(--border);
-  padding: 14px 20px;
+  padding: 20px 24px;
   display: flex;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-end;
+  gap: 24px;
   flex-wrap: wrap;
 }
 
+.price-main {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.price-label {
+  font-size: 0.7rem;
+  color: var(--text4);
+  font-family: 'Geist Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
 #price {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 2.1rem;
-  font-weight: 700;
-  color: var(--cyan);
-  text-shadow: 0 0 32px rgba(0,212,255,0.45);
+  font-family: 'Instrument Serif', serif;
+  font-size: 2.4rem;
+  color: var(--text1);
   letter-spacing: -1px;
   line-height: 1;
 }
 
-.badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 3px;
-  padding: 4px 12px;
+.pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 20px;
   text-transform: uppercase;
+  align-self: flex-end;
+  margin-bottom: 4px;
 }
-.badge-green   { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
-.badge-red     { background: rgba(255,51,85,0.1);  color: var(--red);   border: 1px solid rgba(255,51,85,0.25); }
-.badge-neutral { background: rgba(90,112,144,0.1); color: var(--text2); border: 1px solid var(--border2); }
+.pill-green   { background: var(--green-bg); color: var(--green); }
+.pill-red     { background: var(--red-bg); color: var(--red); }
+.pill-neutral { background: var(--bg2); color: var(--text3); border: 1px solid var(--border); }
 
-.meta {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-  color: var(--text);
+.price-meta {
+  display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;
+  padding-bottom: 4px;
 }
-.meta b { color: var(--text2); font-weight: 400; }
+.meta-item {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.meta-lbl {
+  font-size: 0.65rem;
+  color: var(--text4);
+  font-family: 'Geist Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.meta-val {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--text2);
+  font-weight: 500;
+}
+
+/* ─── Regime badge ─── */
+.regime-tag {
+  align-self: flex-end;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-family: 'Geist Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+.regime-trend    { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.regime-range    { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.regime-volatile { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.regime-diverge  { background: #fdf4ff; color: #7e22ce; border-color: #e9d5ff; }
+.regime-neutral  { background: var(--bg2); color: var(--text3); border-color: var(--border); }
+
+/* ─── Confluence score ─── */
+.confluence-bar-wrap {
+  align-self: flex-end; padding-bottom: 6px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.confluence-bar-track {
+  width: 120px; height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.confluence-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
 
 /* ─── Main layout ─── */
 .layout {
-  position: relative; z-index: 5;
   display: grid;
-  grid-template-columns: 1fr 310px;
+  grid-template-columns: 1fr 300px;
+  min-height: calc(100vh - 56px - 73px - 56px);
 }
 
 /* ─── Chart section ─── */
-.chart-section { border-right: 1px solid var(--border); }
-
-.chart-legend {
+.chart-section {
+  border-right: 1px solid var(--border);
   background: var(--bg1);
-  border-bottom: 1px solid var(--border);
+}
+
+.chart-toolbar {
   padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.68rem;
-  color: var(--text);
+  gap: 14px;
 }
-.leg { display: flex; align-items: center; gap: 6px; }
-.leg-line { width: 18px; height: 2px; }
+.chart-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.67rem;
+  color: var(--text4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.leg-item {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text3);
+}
+.leg-line { width: 14px; height: 2px; border-radius: 1px; }
 
 #main-chart { width: 100%; }
 
-.rsi-header {
-  background: var(--bg1);
+.rsi-bar {
   border-top: 1px solid var(--border);
   padding: 5px 16px;
-  display: flex;
-  gap: 16px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.65rem;
-  color: var(--text);
+  display: flex; gap: 14px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--text4);
+  background: var(--bg);
 }
-.rsi-header span:first-child { color: var(--purple); }
-.rsi-header .ob { color: rgba(255,51,85,0.7); }
-.rsi-header .os { color: rgba(0,255,136,0.7); }
+.rsi-bar span:first-child { color: var(--text3); font-weight: 500; }
 
-#rsi-chart { width: 100%; }
+#rsi-chart { width: 100%; background: var(--bg); }
 
-/* ─── Prediction panel ─── */
-.pred-panel {
+/* ─── AI Panel ─── */
+.ai-panel {
   background: var(--bg1);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  border-left: 1px solid var(--border);
 }
 
-.panel-title {
-  padding: 10px 14px;
+.panel-header {
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 3px;
-  color: var(--text);
-  text-transform: uppercase;
 }
-.ai-pulse {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--purple);
-  box-shadow: 0 0 10px var(--purple);
-  animation: livepulse 1.8s ease-in-out infinite;
-}
-
-.signal-badge {
-  padding: 18px 14px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 2.8rem;
-  font-weight: 700;
-  letter-spacing: 10px;
-  text-align: center;
-  border-bottom: 1px solid var(--border);
-  transition: all 0.3s;
-}
-.sig-long    { color: var(--green); text-shadow: 0 0 40px rgba(0,255,136,0.5); }
-.sig-short   { color: var(--red);   text-shadow: 0 0 40px rgba(255,51,85,0.5); }
-.sig-neutral { color: var(--text2); text-shadow: none; }
-
-.conf-block {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.conf-header {
-  display: flex; justify-content: space-between;
-  margin-bottom: 7px;
-  font-size: 0.67rem; color: var(--text); letter-spacing: 1px;
-}
-#confidence { font-family: 'JetBrains Mono', monospace; color: var(--white); font-size: 0.82rem; }
-.conf-bar   { height: 3px; background: var(--bg3); overflow: hidden; }
-.bar-fill   { height: 100%; transition: width 0.5s ease; }
-.bar-green  { background: var(--green); box-shadow: 0 0 8px rgba(0,255,136,0.4); }
-.bar-gold   { background: var(--gold);  box-shadow: 0 0 8px rgba(255,204,0,0.4); }
-.bar-red    { background: var(--red);   box-shadow: 0 0 8px rgba(255,51,85,0.4); }
-
-.pred-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.pred-lbl { font-size: 0.65rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; }
-.pred-val { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--white); }
-
-.reasoning-block {
-  padding: 12px 14px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.reasoning-lbl { font-size: 0.62rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; }
-#reasoning {
-  font-size: 0.8rem;
+.panel-header-title {
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--text2);
-  line-height: 1.6;
-  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
 }
+.ai-icon {
+  width: 20px; height: 20px;
+  background: var(--accent-soft);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ai-icon svg { width: 11px; height: 11px; color: var(--accent); }
 
-#no-pred-msg {
-  flex: 1;
+/* Signal */
+.signal-block {
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 18px;
-  text-align: center;
   gap: 12px;
 }
-.no-pred-icon { font-size: 2rem; opacity: 0.3; }
-.no-pred-txt  { font-size: 0.78rem; color: var(--text); line-height: 1.7; }
+.signal-mark {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.sig-long-mark  { background: var(--green-bg); }
+.sig-short-mark { background: var(--red-bg); }
+.sig-neutral-mark { background: var(--bg2); }
+.signal-text-block { display: flex; flex-direction: column; gap: 1px; }
+.signal-word {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.6rem;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+.sig-long-txt  { color: var(--green); }
+.sig-short-txt { color: var(--red); }
+.sig-neutral-txt { color: var(--text3); }
+.signal-sub {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text4);
+}
+
+/* Confidence */
+.conf-block {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.conf-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.conf-lbl { font-size: 0.67rem; color: var(--text4); text-transform: uppercase; letter-spacing: 1px; }
+#confidence { font-family: 'Geist Mono', monospace; font-size: 0.82rem; color: var(--text1); font-weight: 500; }
+.conf-track { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.conf-fill  { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+.conf-fill-high   { background: var(--green); }
+.conf-fill-mid    { background: var(--orange); }
+.conf-fill-low    { background: var(--red); }
+
+/* Data rows */
+.data-row {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.data-lbl {
+  font-size: 0.67rem;
+  color: var(--text4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.data-val {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text1);
+}
+.dv-green { color: var(--green); }
+.dv-red   { color: var(--red); }
+.dv-orange { color: var(--orange); }
+
+/* Reasoning */
+.reasoning-block {
+  padding: 14px 16px;
+  flex: 1;
+}
+.reasoning-lbl {
+  font-size: 0.65rem;
+  color: var(--text4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+#reasoning {
+  font-size: 0.8rem;
+  color: var(--text3);
+  line-height: 1.65;
+  font-style: italic;
+  font-family: 'Instrument Serif', serif;
+  font-size: 0.92rem;
+}
+
+/* No key state */
+#no-pred-msg {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px; text-align: center; gap: 10px;
+}
+.no-pred-icon {
+  width: 40px; height: 40px;
+  background: var(--bg2);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+.no-pred-txt { font-size: 0.8rem; color: var(--text3); line-height: 1.65; }
+.no-pred-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--accent-soft);
+  transition: border-color 0.15s;
+}
+.no-pred-link:hover { border-color: var(--accent); }
 
 #pred-content { display: none; }
 
 /* ─── Indicators grid ─── */
-.ind-grid {
-  position: relative; z-index: 5;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-.ind-card {
-  padding: 10px 14px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg1);
-  transition: background 0.2s;
-}
-.ind-card:hover { background: var(--bg2); }
-.ind-lbl  { font-size: 0.6rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
-.ind-value { font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; font-weight: 500; }
-.text-green  { color: var(--green); }
-.text-red    { color: var(--red); }
-.text-cyan   { color: var(--cyan); }
-.text-gold   { color: var(--gold); }
-.text-purple { color: var(--purple); }
-.text-text   { color: var(--text3); }
-
-/* ─── Settings / footer ─── */
-.settings {
-  position: relative; z-index: 5;
+.indicators-section {
   background: var(--bg1);
   border-top: 1px solid var(--border);
-  padding: 11px 20px;
+  padding: 16px 24px;
+}
+.indicators-row {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  gap: 0;
   flex-wrap: wrap;
 }
+.ind-card {
+  padding: 10px 16px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  min-width: 100px;
+  flex: 1;
+}
+.ind-card:last-child { border-right: none; }
+.ind-lbl {
+  font-size: 0.6rem;
+  color: var(--text4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.ind-value {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text2);
+}
+.ind-green  { color: var(--green); }
+.ind-red    { color: var(--red); }
+.ind-orange { color: var(--orange); }
+.ind-blue   { color: var(--blue); }
+.ind-text   { color: var(--text2); }
+
+/* ─── Settings bar ─── */
+.settings-bar {
+  background: var(--bg1);
+  border-top: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .settings-lbl {
-  font-size: 0.67rem; color: var(--text);
-  letter-spacing: 2px; text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--text4);
+  font-weight: 500;
   white-space: nowrap;
 }
 #api-key {
-  flex: 1; min-width: 220px; max-width: 380px;
+  flex: 1; min-width: 200px; max-width: 340px;
   background: var(--bg2);
-  border: 1px solid var(--border2);
-  color: var(--text2);
-  padding: 7px 12px;
-  font-family: 'JetBrains Mono', monospace;
+  border: 1px solid var(--border);
+  color: var(--text1);
+  padding: 6px 12px;
+  font-family: 'Geist Mono', monospace;
   font-size: 0.78rem;
   outline: none;
-  transition: border-color 0.2s;
+  border-radius: var(--radius);
+  transition: border-color 0.15s;
 }
-#api-key:focus   { border-color: var(--cyan); }
-#api-key::placeholder { color: var(--text); }
+#api-key:focus { border-color: var(--accent); background: var(--bg1); }
+#api-key::placeholder { color: var(--text4); }
 
-.storage-note { font-size: 0.65rem; color: var(--text); font-family: 'JetBrains Mono', monospace; }
-.timer-note   { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text); }
-#countdown    { color: var(--cyan); }
-#last-update  { color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
+.storage-note {
+  font-size: 0.65rem;
+  color: var(--text4);
+  font-family: 'Geist Mono', monospace;
+}
+
+.timer-wrap {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text4);
+}
+#countdown { color: var(--text2); font-weight: 500; }
+#last-update { color: var(--text4); font-family: 'Geist Mono', monospace; font-size: 0.7rem; }
+
+/* ─── History panel ─── */
+.history-section {
+  background: var(--bg1);
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+}
+.section-title {
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.winrate-pill {
+  font-family: 'Geist Mono', monospace;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: var(--bg2);
+  color: var(--text3);
+  border: 1px solid var(--border);
+}
+.history-table { width: 100%; border-collapse: collapse; }
+.history-table th {
+  font-size: 0.6rem; color: var(--text4); text-transform: uppercase;
+  letter-spacing: 1px; text-align: left;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.history-table td {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text2);
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.history-table tr:last-child td { border-bottom: none; }
+.outcome-win  { color: var(--green); font-weight: 600; background: var(--green-bg); padding: 2px 6px; border-radius: 4px; }
+.outcome-loss { color: var(--red); font-weight: 600; background: var(--red-bg); padding: 2px 6px; border-radius: 4px; }
+.outcome-pending { color: var(--orange); font-weight: 600; background: var(--orange-bg); padding: 2px 6px; border-radius: 4px; }
+.empty-history { text-align: center; padding: 24px; color: var(--text4); font-size: 0.78rem; }
 
 /* ─── Responsive ─── */
-@media (max-width: 800px) {
+@media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
-  .chart-section { border-right: none; border-bottom: 1px solid var(--border); }
-  #price { font-size: 1.6rem; }
-  .logo  { font-size: 1.1rem; letter-spacing: 2px; }
-  .signal-badge { font-size: 2rem; }
+  .ai-panel { border-left: none; border-top: 1px solid var(--border); }
+  #price { font-size: 1.9rem; }
+  .indicators-row { flex-wrap: wrap; }
+  .ind-card { min-width: 80px; }
 }
 
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track  { background: var(--bg); }
 ::-webkit-scrollbar-thumb  { background: var(--border2); border-radius: 2px; }
 </style>
@@ -448,17 +644,21 @@ select option { background: var(--bg2); color: var(--white); }
 
 <!-- Loader -->
 <div id="loader">
-  <div class="loader-ring"></div>
-  <div class="loader-txt">CONNEXION AU MARCHÉ...</div>
+  <div class="loader-dots">
+    <div class="loader-dot"></div>
+    <div class="loader-dot"></div>
+    <div class="loader-dot"></div>
+  </div>
+  <div class="loader-txt">Chargement des données...</div>
 </div>
 
 <!-- ── Header ── -->
 <header>
-  <div class="logo">Inception <em></em>Capital</div>
-
-  <div class="live-dot">
-    <div class="dot"></div>
-    LIVE
+  <div class="logo"><em>Oracle</em></div>
+  <div class="divider-v"></div>
+  <div class="live-indicator">
+    <div class="live-dot"></div>
+    Binance · Live
   </div>
 
   <select id="symbol-select">
@@ -472,20 +672,57 @@ select option { background: var(--bg2); color: var(--white); }
     <option value="AVAXUSDT">AVAX / USDT</option>
   </select>
 
-  <div id="status" class="status status-loading">Initialisation...</div>
+  <div id="status" class="status status-loading">Initialisation</div>
 
-  <div class="ml-auto" style="display:flex;align-items:center;gap:12px;">
-    <span id="last-update" style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text);">—</span>
-    <button id="refresh-btn" class="btn">↺ &nbsp;Refresh</button>
+  <div class="ml-auto" style="display:flex;align-items:center;gap:10px;">
+    <span id="last-update"></span>
+    <button id="refresh-btn" class="btn">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M1 7A6 6 0 0 1 12 4M1 7V3m0 4H5M13 7a6 6 0 0 1-11 3m11 0v4m0-4h-4"/>
+      </svg>
+      Actualiser
+    </button>
   </div>
 </header>
 
-<!-- ── Price bar ── -->
-<div class="price-bar">
-  <div id="price">—</div>
-  <div id="trend-badge" class="badge badge-neutral">—</div>
-  <div class="meta" style="margin-left:auto;">
-    PROCHAIN REFRESH &nbsp;<b><span id="countdown">—</span></b>
+<!-- ── Price header ── -->
+<div class="price-section">
+  <div class="price-main">
+    <div class="price-label">Prix actuel</div>
+    <div id="price">—</div>
+  </div>
+
+  <div id="trend-badge" class="pill pill-neutral">—</div>
+
+  <div class="price-meta">
+    <div class="meta-item">
+      <div class="meta-lbl">Support</div>
+      <div class="meta-val" id="meta-support">—</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-lbl">Résistance</div>
+      <div class="meta-val" id="meta-resistance">—</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-lbl">ATR(14)</div>
+      <div class="meta-val" id="meta-atr">—</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-lbl">Fib proche</div>
+      <div class="meta-val" id="meta-fib">—</div>
+    </div>
+  </div>
+
+  <div id="regime-tag" class="regime-tag regime-neutral ml-auto" style="align-self:flex-end;margin-bottom:4px;">Régime inconnu</div>
+
+  <div class="confluence-bar-wrap">
+    <div style="display:flex;justify-content:space-between;">
+      <span class="meta-lbl">Confluence</span>
+      <span class="meta-val" id="confluence-score" style="font-size:0.7rem;">—</span>
+    </div>
+    <div class="confluence-bar-track">
+      <div id="confluence-bar" class="confluence-bar-fill" style="width:50%;background:var(--border2);"></div>
+    </div>
   </div>
 </div>
 
@@ -494,134 +731,190 @@ select option { background: var(--bg2); color: var(--white); }
 
   <!-- Chart section -->
   <div class="chart-section">
-    <div class="chart-legend">
-      <span style="color:var(--text2);">30M · 300 BOUGIES · BINANCE</span>
-      <div class="leg"><div class="leg-line" style="background:#ffd700;"></div><span style="color:#ffd700;">EMA20</span></div>
-      <div class="leg"><div class="leg-line" style="background:#00d4ff;"></div><span style="color:#00d4ff;">EMA50</span></div>
+    <div class="chart-toolbar">
+      <span class="chart-label">30 min · 300 bougies</span>
+      <div class="leg-item">
+        <div class="leg-line" style="background:#d97706;"></div>
+        <span>EMA 20</span>
+      </div>
+      <div class="leg-item">
+        <div class="leg-line" style="background:#1d4ed8;"></div>
+        <span>EMA 50</span>
+      </div>
     </div>
     <div id="main-chart"></div>
-    <div class="rsi-header">
+    <div class="rsi-bar">
       <span>RSI (14)</span>
-      <span class="ob">── 70 SURACHETÉ</span>
-      <span class="os">── 30 SURVENDU</span>
+      <span>── 70 surachat</span>
+      <span>── 30 survente</span>
     </div>
     <div id="rsi-chart"></div>
   </div>
 
-  <!-- Prediction panel -->
-  <div class="pred-panel">
-    <div class="panel-title">
-      <div class="ai-pulse"></div>
-      ANALYSE GEMINI IA
+  <!-- AI Panel -->
+  <div class="ai-panel">
+    <div class="panel-header">
+      <div class="ai-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-3.7-6.3-2.1 2.1M6.8 17.2l-2.1 2.1M17.2 17.2l2.1 2.1M4.7 4.7l2.1 2.1"/>
+        </svg>
+      </div>
+      <span class="panel-header-title">Analyse IA</span>
     </div>
 
-    <div id="signal" class="signal-badge sig-neutral">—</div>
-
-    <!-- No-key message -->
-    <div id="no-pred-msg">
-      <div class="no-pred-icon">🤖</div>
-      <div class="no-pred-txt">
-        Entrez votre clé API Gemini dans la barre en bas pour activer les prédictions IA en temps réel.
-        <br><br>
-        <a href="https://aistudio.google.com/app/apikey" target="_blank"
-           style="color:var(--cyan);text-decoration:none;font-size:0.75rem;">
-          → Obtenir une clé gratuite
-        </a>
+    <!-- Signal -->
+    <div class="signal-block">
+      <div id="signal-mark" class="signal-mark sig-neutral-mark">
+        <span style="font-size:1.2rem;">—</span>
+      </div>
+      <div class="signal-text-block">
+        <div id="signal" class="signal-word sig-neutral-txt">Attente</div>
+        <div class="signal-sub" id="signal-sub">Aucun signal</div>
       </div>
     </div>
 
-    <!-- Prediction content (shown after Gemini responds) -->
+    <!-- No key -->
+    <div id="no-pred-msg">
+      <div class="no-pred-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div class="no-pred-txt">
+        Entrez votre clé API Gemini pour activer les prédictions IA.
+      </div>
+      <a href="https://aistudio.google.com/app/apikey" target="_blank" class="no-pred-link">
+        Obtenir une clé gratuite →
+      </a>
+    </div>
+
+    <!-- Pred content -->
     <div id="pred-content">
       <div class="conf-block">
-        <div class="conf-header">
-          <span>CONFIANCE</span>
+        <div class="conf-row">
+          <span class="conf-lbl">Confiance</span>
           <span id="confidence">—</span>
         </div>
-        <div class="conf-bar">
-          <div id="conf-bar-fill" class="bar-fill" style="width:0%"></div>
+        <div class="conf-track">
+          <div id="conf-bar-fill" class="conf-fill conf-fill-mid" style="width:0%"></div>
         </div>
       </div>
 
-      <div class="pred-row">
-        <span class="pred-lbl">CIBLE</span>
-        <span class="pred-val" id="target" style="color:var(--green);">—</span>
+      <div class="data-row">
+        <span class="data-lbl">Objectif</span>
+        <span class="data-val dv-green" id="target">—</span>
       </div>
-      <div class="pred-row">
-        <span class="pred-lbl">STOP LOSS</span>
-        <span class="pred-val" id="stoploss" style="color:var(--red);">—</span>
+      <div class="data-row">
+        <span class="data-lbl">Stop loss</span>
+        <span class="data-val dv-red" id="stoploss">—</span>
       </div>
-      <div class="pred-row">
-        <span class="pred-lbl">HORIZON</span>
-        <span class="pred-val" id="horizon">—</span>
+      <div class="data-row">
+        <span class="data-lbl">Horizon</span>
+        <span class="data-val" id="horizon">—</span>
       </div>
-      <div class="pred-row">
-        <span class="pred-lbl">RISK / REWARD</span>
-        <span class="pred-val" id="rr" style="color:var(--gold);">—</span>
+      <div class="data-row">
+        <span class="data-lbl">R / R</span>
+        <span class="data-val dv-orange" id="rr">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-lbl">Régime détecté</span>
+        <span class="data-val" id="pred-regime">—</span>
       </div>
 
       <div class="reasoning-block">
-        <div class="reasoning-lbl">ANALYSE IA</div>
+        <div class="reasoning-lbl">Analyse</div>
         <div id="reasoning"></div>
       </div>
     </div>
   </div>
-</div><!-- /layout -->
+</div>
 
-<!-- ── Indicators grid ── -->
-<div class="ind-grid">
-  <div class="ind-card">
-    <div class="ind-lbl">RSI · 14</div>
-    <div class="ind-value text-cyan" id="ind-rsi">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">MACD Histo</div>
-    <div class="ind-value text-cyan" id="ind-macd">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">EMA · 20</div>
-    <div class="ind-value text-cyan" id="ind-ema20">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">EMA · 50</div>
-    <div class="ind-value text-cyan" id="ind-ema50">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">EMA · 200</div>
-    <div class="ind-value text-cyan" id="ind-ema200">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">BB Upper</div>
-    <div class="ind-value text-text" id="ind-bb-upper">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">BB Lower</div>
-    <div class="ind-value text-text" id="ind-bb-lower">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">BB Bandwidth</div>
-    <div class="ind-value text-gold" id="ind-bb-bw">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">Support</div>
-    <div class="ind-value text-green" id="ind-support">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">Résistance</div>
-    <div class="ind-value text-red" id="ind-resistance">—</div>
-  </div>
-  <div class="ind-card">
-    <div class="ind-lbl">Volume</div>
-    <div class="ind-value text-cyan" id="ind-volume">—</div>
+<!-- ── Indicators ── -->
+<div class="indicators-section">
+  <div class="indicators-row">
+    <div class="ind-card">
+      <div class="ind-lbl">RSI · 14</div>
+      <div class="ind-value" id="ind-rsi">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">Stoch RSI</div>
+      <div class="ind-value" id="ind-srsi">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">MACD Histo</div>
+      <div class="ind-value" id="ind-macd">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">ADX</div>
+      <div class="ind-value" id="ind-adx">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">EMA 20</div>
+      <div class="ind-value" id="ind-ema20">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">EMA 50</div>
+      <div class="ind-value" id="ind-ema50">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">EMA 200</div>
+      <div class="ind-value" id="ind-ema200">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">BB %B</div>
+      <div class="ind-value" id="ind-bb-pct">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">BB Bandwidth</div>
+      <div class="ind-value" id="ind-bb-bw">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">OBV</div>
+      <div class="ind-value" id="ind-obv">—</div>
+    </div>
+    <div class="ind-card">
+      <div class="ind-lbl">ROC (10)</div>
+      <div class="ind-value" id="ind-roc">—</div>
+    </div>
+    <div class="ind-card" style="border-right:none;">
+      <div class="ind-lbl">Volume</div>
+      <div class="ind-value" id="ind-volume">—</div>
+    </div>
   </div>
 </div>
 
-<!-- ── Settings bar ── -->
-<div class="settings">
-  <span class="settings-lbl">🔑 Clé API Gemini</span>
+<!-- ── Prediction History ── -->
+<div class="history-section">
+  <div class="section-title">
+    Historique des prédictions
+    <span id="winrate-badge" class="winrate-pill">Win rate —</span>
+  </div>
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Heure</th>
+        <th>Symbole</th>
+        <th>Signal</th>
+        <th>Prix entrée</th>
+        <th>Objectif</th>
+        <th>Stop</th>
+        <th>Confiance</th>
+        <th>Résultat</th>
+      </tr>
+    </thead>
+    <tbody id="history-tbody">
+      <tr><td colspan="8" class="empty-history">Aucune prédiction enregistrée</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Settings ── -->
+<div class="settings-bar">
+  <span class="settings-lbl">Clé API Gemini</span>
   <input type="password" id="api-key" placeholder="AIzaSy...">
-  <span class="storage-note">Stockée localement · jamais envoyée à nos serveurs</span>
-  <div class="ml-auto">
-    <span class="timer-note">REFRESH AUTO : <span id="countdown">—</span></span>
+  <span class="storage-note">Stockée localement uniquement</span>
+  <div class="ml-auto timer-wrap">
+    Prochain refresh <span id="countdown">—</span>
   </div>
 </div>
 
