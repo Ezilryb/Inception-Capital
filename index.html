@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoOracle — AI Market Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+
+<style>
+/* ─── Reset & root ─── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg:      #04070f;
+  --bg1:     #060c18;
+  --bg2:     #09111f;
+  --bg3:     #0c1628;
+  --border:  #111e30;
+  --border2: #182a40;
+  --text:    #3d5570;
+  --text2:   #6a8aaa;
+  --text3:   #a0b8d0;
+  --white:   #c8daea;
+  --cyan:    #00d4ff;
+  --cyan2:   #007aad;
+  --green:   #00ff88;
+  --red:     #ff3355;
+  --gold:    #ffcc00;
+  --purple:  #9d6eff;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text3);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanlines */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Subtle grid bg */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Loader overlay ─── */
+#loader {
+  position: fixed; inset: 0;
+  background: rgba(4,7,15,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 9998;
+  backdrop-filter: blur(4px);
+}
+.loader-ring {
+  width: 48px; height: 48px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.loader-txt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text2);
+  letter-spacing: 2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Header ─── */
+header {
+  position: relative; z-index: 10;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 4px;
+  color: var(--cyan);
+  text-shadow: 0 0 24px rgba(0,212,255,0.6);
+  white-space: nowrap;
+  user-select: none;
+}
+.logo em { color: var(--text2); font-style: normal; font-weight: 300; }
+
+.live-dot {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: livepulse 1.5s ease-in-out infinite;
+}
+@keyframes livepulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
+  50%      { opacity: 0.4; box-shadow: none; }
+}
+
+select {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  padding: 6px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7090'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+select:focus { border-color: var(--cyan); }
+select option { background: var(--bg2); color: var(--white); }
+
+#status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+.status-ok      { color: var(--green); }
+.status-loading { color: var(--gold);   animation: blink 1s infinite; }
+.status-ai      { color: var(--purple); animation: blink 0.6s infinite; }
+.status-error   { color: var(--red); background: rgba(255,51,85,0.08); }
+
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+.ml-auto { margin-left: auto; }
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  padding: 6px 16px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+.btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,212,255,0.15);
+}
+.btn:active { transform: scale(0.97); }
+
+/* ─── Price bar ─── */
+.price-bar {
+  position: relative; z-index: 10;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+#price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-shadow: 0 0 32px rgba(0,212,255,0.45);
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  padding: 4px 12px;
+  text-transform: uppercase;
+}
+.badge-green   { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+.badge-red     { background: rgba(255,51,85,0.1);  color: var(--red);   border: 1px solid rgba(255,51,85,0.25); }
+.badge-neutral { background: rgba(90,112,144,0.1); color: var(--text2); border: 1px solid var(--border2); }
+
+.meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text);
+}
+.meta b { color: var(--text2); font-weight: 400; }
+
+/* ─── Main layout ─── */
+.layout {
+  position: relative; z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr 310px;
+}
+
+/* ─── Chart section ─── */
+.chart-section { border-right: 1px solid var(--border); }
+
+.chart-legend {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text);
+}
+.leg { display: flex; align-items: center; gap: 6px; }
+.leg-line { width: 18px; height: 2px; }
+
+#main-chart { width: 100%; }
+
+.rsi-header {
+  background: var(--bg1);
+  border-top: 1px solid var(--border);
+  padding: 5px 16px;
+  display: flex;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text);
+}
+.rsi-header span:first-child { color: var(--purple); }
+.rsi-header .ob { color: rgba(255,51,85,0.7); }
+.rsi-header .os { color: rgba(0,255,136,0.7); }
+
+#rsi-chart { width: 100%; }
+
+/* ─── Prediction panel ─── */
+.pred-panel {
+  background: var(--bg1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-title {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.ai-pulse {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--purple);
+  box-shadow: 0 0 10px var(--purple);
+  animation: livepulse 1.8s ease-in-out infinite;
+}
+
+.signal-badge {
+  padding: 18px 14px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.sig-long    { color: var(--green); text-shadow: 0 0 40px rgba(0,255,136,0.5); }
+.sig-short   { color: var(--red);   text-shadow: 0 0 40px rgba(255,51,85,0.5); }
+.sig-neutral { color: var(--text2); text-shadow: none; }
+
+.conf-block {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.conf-header {
+  display: flex; justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 0.67rem; color: var(--text); letter-spacing: 1px;
+}
+#confidence { font-family: 'JetBrains Mono', monospace; color: var(--white); font-size: 0.82rem; }
+.conf-bar   { height: 3px; background: var(--bg3); overflow: hidden; }
+.bar-fill   { height: 100%; transition: width 0.5s ease; }
+.bar-green  { background: var(--green); box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+.bar-gold   { background: var(--gold);  box-shadow: 0 0 8px rgba(255,204,0,0.4); }
+.bar-red    { background: var(--red);   box-shadow: 0 0 8px rgba(255,51,85,0.4); }
+
+.pred-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pred-lbl { font-size: 0.65rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; }
+.pred-val { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--white); }
+
+.reasoning-block {
+  padding: 12px 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reasoning-lbl { font-size: 0.62rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; }
+#reasoning {
+  font-size: 0.8rem;
+  color: var(--text2);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+#no-pred-msg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px;
+  text-align: center;
+  gap: 12px;
+}
+.no-pred-icon { font-size: 2rem; opacity: 0.3; }
+.no-pred-txt  { font-size: 0.78rem; color: var(--text); line-height: 1.7; }
+
+#pred-content { display: none; }
+
+/* ─── Indicators grid ─── */
+.ind-grid {
+  position: relative; z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.ind-card {
+  padding: 10px 14px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg1);
+  transition: background 0.2s;
+}
+.ind-card:hover { background: var(--bg2); }
+.ind-lbl  { font-size: 0.6rem; color: var(--text); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.ind-value { font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; font-weight: 500; }
+.text-green  { color: var(--green); }
+.text-red    { color: var(--red); }
+.text-cyan   { color: var(--cyan); }
+.text-gold   { color: var(--gold); }
+.text-purple { color: var(--purple); }
+.text-text   { color: var(--text3); }
+
+/* ─── Settings / footer ─── */
+.settings {
+  position: relative; z-index: 5;
+  background: var(--bg1);
+  border-top: 1px solid var(--border);
+  padding: 11px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.settings-lbl {
+  font-size: 0.67rem; color: var(--text);
+  letter-spacing: 2px; text-transform: uppercase;
+  white-space: nowrap;
+}
+#api-key {
+  flex: 1; min-width: 220px; max-width: 380px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  padding: 7px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+#api-key:focus   { border-color: var(--cyan); }
+#api-key::placeholder { color: var(--text); }
+
+.storage-note { font-size: 0.65rem; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.timer-note   { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text); }
+#countdown    { color: var(--cyan); }
+#last-update  { color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
+
+/* ─── Responsive ─── */
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+  .chart-section { border-right: none; border-bottom: 1px solid var(--border); }
+  #price { font-size: 1.6rem; }
+  .logo  { font-size: 1.1rem; letter-spacing: 2px; }
+  .signal-badge { font-size: 2rem; }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track  { background: var(--bg); }
+::-webkit-scrollbar-thumb  { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-txt">CONNEXION AU MARCHÉ...</div>
+</div>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">CRYPTO<em>ORACLE</em></div>
+
+  <div class="live-dot">
+    <div class="dot"></div>
+    LIVE
+  </div>
+
+  <select id="symbol-select">
+    <option value="BTCUSDT">BTC / USDT</option>
+    <option value="ETHUSDT">ETH / USDT</option>
+    <option value="SOLUSDT">SOL / USDT</option>
+    <option value="BNBUSDT">BNB / USDT</option>
+    <option value="XRPUSDT">XRP / USDT</option>
+    <option value="DOGEUSDT">DOGE / USDT</option>
+    <option value="ADAUSDT">ADA / USDT</option>
+    <option value="AVAXUSDT">AVAX / USDT</option>
+  </select>
+
+  <div id="status" class="status status-loading">Initialisation...</div>
+
+  <div class="ml-auto" style="display:flex;align-items:center;gap:12px;">
+    <span id="last-update" style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text);">—</span>
+    <button id="refresh-btn" class="btn">↺ &nbsp;Refresh</button>
+  </div>
+</header>
+
+<!-- ── Price bar ── -->
+<div class="price-bar">
+  <div id="price">—</div>
+  <div id="trend-badge" class="badge badge-neutral">—</div>
+  <div class="meta" style="margin-left:auto;">
+    PROCHAIN REFRESH &nbsp;<b><span id="countdown">—</span></b>
+  </div>
+</div>
+
+<!-- ── Main layout ── -->
+<div class="layout">
+
+  <!-- Chart section -->
+  <div class="chart-section">
+    <div class="chart-legend">
+      <span style="color:var(--text2);">30M · 300 BOUGIES · BINANCE</span>
+      <div class="leg"><div class="leg-line" style="background:#ffd700;"></div><span style="color:#ffd700;">EMA20</span></div>
+      <div class="leg"><div class="leg-line" style="background:#00d4ff;"></div><span style="color:#00d4ff;">EMA50</span></div>
+    </div>
+    <div id="main-chart"></div>
+    <div class="rsi-header">
+      <span>RSI (14)</span>
+      <span class="ob">── 70 SURACHETÉ</span>
+      <span class="os">── 30 SURVENDU</span>
+    </div>
+    <div id="rsi-chart"></div>
+  </div>
+
+  <!-- Prediction panel -->
+  <div class="pred-panel">
+    <div class="panel-title">
+      <div class="ai-pulse"></div>
+      ANALYSE GEMINI IA
+    </div>
+
+    <div id="signal" class="signal-badge sig-neutral">—</div>
+
+    <!-- No-key message -->
+    <div id="no-pred-msg">
+      <div class="no-pred-icon">🤖</div>
+      <div class="no-pred-txt">
+        Entrez votre clé API Gemini dans la barre en bas pour activer les prédictions IA en temps réel.
+        <br><br>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank"
+           style="color:var(--cyan);text-decoration:none;font-size:0.75rem;">
+          → Obtenir une clé gratuite
+        </a>
+      </div>
+    </div>
+
+    <!-- Prediction content (shown after Gemini responds) -->
+    <div id="pred-content">
+      <div class="conf-block">
+        <div class="conf-header">
+          <span>CONFIANCE</span>
+          <span id="confidence">—</span>
+        </div>
+        <div class="conf-bar">
+          <div id="conf-bar-fill" class="bar-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="pred-row">
+        <span class="pred-lbl">CIBLE</span>
+        <span class="pred-val" id="target" style="color:var(--green);">—</span>
+      </div>
+      <div class="pred-row">
+        <span class="pred-lbl">STOP LOSS</span>
+        <span class="pred-val" id="stoploss" style="color:var(--red);">—</span>
+      </div>
+      <div class="pred-row">
+        <span class="pred-lbl">HORIZON</span>
+        <span class="pred-val" id="horizon">—</span>
+      </div>
+      <div class="pred-row">
+        <span class="pred-lbl">RISK / REWARD</span>
+        <span class="pred-val" id="rr" style="color:var(--gold);">—</span>
+      </div>
+
+      <div class="reasoning-block">
+        <div class="reasoning-lbl">ANALYSE IA</div>
+        <div id="reasoning"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /layout -->
+
+<!-- ── Indicators grid ── -->
+<div class="ind-grid">
+  <div class="ind-card">
+    <div class="ind-lbl">RSI · 14</div>
+    <div class="ind-value text-cyan" id="ind-rsi">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">MACD Histo</div>
+    <div class="ind-value text-cyan" id="ind-macd">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">EMA · 20</div>
+    <div class="ind-value text-cyan" id="ind-ema20">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">EMA · 50</div>
+    <div class="ind-value text-cyan" id="ind-ema50">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">EMA · 200</div>
+    <div class="ind-value text-cyan" id="ind-ema200">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">BB Upper</div>
+    <div class="ind-value text-text" id="ind-bb-upper">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">BB Lower</div>
+    <div class="ind-value text-text" id="ind-bb-lower">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">BB Bandwidth</div>
+    <div class="ind-value text-gold" id="ind-bb-bw">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">Support</div>
+    <div class="ind-value text-green" id="ind-support">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">Résistance</div>
+    <div class="ind-value text-red" id="ind-resistance">—</div>
+  </div>
+  <div class="ind-card">
+    <div class="ind-lbl">Volume</div>
+    <div class="ind-value text-cyan" id="ind-volume">—</div>
+  </div>
+</div>
+
+<!-- ── Settings bar ── -->
+<div class="settings">
+  <span class="settings-lbl">🔑 Clé API Gemini</span>
+  <input type="password" id="api-key" placeholder="AIzaSy...">
+  <span class="storage-note">Stockée localement · jamais envoyée à nos serveurs</span>
+  <div class="ml-auto">
+    <span class="timer-note">REFRESH AUTO : <span id="countdown">—</span></span>
+  </div>
+</div>
+
+<script src="indicators.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
