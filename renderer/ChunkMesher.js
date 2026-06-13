@@ -103,10 +103,10 @@ const FACES = [
     normal: [0, 1, 0],
     neighbor: [0, 1, 0],
     vertices: [
-      [0, 1, 0],
-      [1, 1, 0],
-      [1, 1, 1],
       [0, 1, 1],
+      [1, 1, 1],
+      [1, 1, 0],
+      [0, 1, 0],
     ],
     textureKey: 'top',
     aoCorners: [
@@ -121,10 +121,10 @@ const FACES = [
     normal: [0, -1, 0],
     neighbor: [0, -1, 0],
     vertices: [
-      [0, 0, 1],
-      [1, 0, 1],
-      [1, 0, 0],
       [0, 0, 0],
+      [1, 0, 0],
+      [1, 0, 1],
+      [0, 0, 1],
     ],
     textureKey: 'bottom',
     aoCorners: [
