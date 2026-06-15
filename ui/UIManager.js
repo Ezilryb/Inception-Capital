@@ -1,8 +1,8 @@
 'use strict';
 
 import { REGISTRY }          from '../world/BlockRegistry.js';
-import { getItemInfo, isBlockItem } from './Items.js';
-import { HOTBAR_SIZE, INV_SIZE, ItemStack } from './Inventory.js';
+import { getItemInfo, isBlockItem } from '../gameplay/Items.js';
+import { HOTBAR_SIZE, INV_SIZE, ItemStack } from '../gameplay/Inventory.js';
 
 // ─────────────────────────────────────────────────────────────
 //  UIManager
