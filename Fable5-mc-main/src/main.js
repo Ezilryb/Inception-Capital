@@ -4,6 +4,8 @@
 // placing with crack overlay & block outline, the first-person
 // held block, support/gravity checks, saving to localStorage,
 // the F3 debug screen and the render loop.
+//
+// ADDED: CraftingUI integration (C key opens crafting table)
 // ============================================================
 
 import * as THREE from 'three';
@@ -20,6 +22,7 @@ import { Particles } from './particles.js';
 import { AudioFX } from './audio.js';
 import { Entities } from './entities.js';
 import { UI } from './ui.js';
+import { CraftingUI } from './ui_craft.js';
 import { hashString } from './noise.js';
 
 const SETTINGS_KEY = 'mcjs:settings';
@@ -165,6 +168,15 @@ class Game {
     this.ui.setIcons(this.icons);
     this.ui.updateHotbar(this.hotbar, this.selected);
 
+    // ---------- crafting UI ----------
+    this.craftUI = new CraftingUI({
+      icons: this.icons,
+      getHotbar: () => this.hotbar,
+      onCraft: (id, count) => this._receiveCraftResult(id, count),
+      onClose: () => this.closeCrafting(),
+    });
+    this.craftOpen = false;
+
     // ---------- game state ----------
     this.state = 'title';
     this.pickerOpen = false;
@@ -196,8 +208,6 @@ class Game {
     this.lastT = performance.now();
     this._rafPending = false;
     this.scheduleFrame();
-    // RAF is suspended in hidden/occluded tabs; this watchdog keeps the
-    // simulation (loading, autosave, time of day) ticking at ~10 Hz there.
     setInterval(() => {
       if (performance.now() - this.lastT > 350) this.frame(performance.now());
     }, 100);
@@ -269,7 +279,7 @@ class Game {
     } else {
       this.player.teleport(this.spawn.x, this.spawn.y + 1, this.spawn.z);
     }
-    this.sky.setTimeOfDay(this.saveData?.time ?? 0.1); // fresh worlds start mid-morning
+    this.sky.setTimeOfDay(this.saveData?.time ?? 0.1);
   }
 
   parseSeed(str) {
@@ -304,7 +314,6 @@ class Game {
 
   finishLoading() {
     if (!this.usedSavedPos) {
-      // snap to the real surface (caves may have carved under the estimate)
       const bx = Math.floor(this.player.pos.x), bz = Math.floor(this.player.pos.z);
       let y = WORLD_H - 2;
       while (y > 1 && !BLOCKS[this.world.getBlock(bx, y, bz)].solid) y--;
@@ -327,6 +336,7 @@ class Game {
   resume() {
     this.ui.hideAllMenus();
     if (this.pickerOpen) this.closePicker(false);
+    if (this.craftOpen) this.closeCrafting();
     this.state = 'playing';
     this.lockPointer();
   }
@@ -335,10 +345,64 @@ class Game {
     this.saveWorld();
     this.state = 'title';
     this.pickerOpen = false;
+    this.craftOpen = false;
     this.ui.hideAllMenus();
     this.ui.hide('hud');
     this.ui.show('title');
     document.exitPointerLock?.();
+    if (this.craftUI) this.craftUI.close();
+  }
+
+  // ============================================================
+  // Crafting
+  // ============================================================
+
+  openCrafting() {
+    if (this.pickerOpen) this.closePicker(false);
+    this.craftOpen = true;
+    this.mining = false;
+    this.rmbHeld = false;
+    this.craftUI.open();
+    document.exitPointerLock?.();
+    this.audio.click();
+  }
+
+  closeCrafting() {
+    this.craftOpen = false;
+    this.craftUI.close();
+    if (this.state === 'playing') {
+      this.lockPointer();
+    }
+  }
+
+  /**
+   * Called by CraftingUI when the player clicks a crafted result.
+   * Adds the block to the hotbar: fills the first empty slot, or
+   * replaces the currently selected slot if it matches, or the last slot.
+   */
+  _receiveCraftResult(id, count) {
+    // Try the selected slot first if empty
+    if (!this.hotbar[this.selected] || this.hotbar[this.selected] === B.AIR) {
+      this.hotbar[this.selected] = id;
+      this.ui.updateHotbar(this.hotbar, this.selected);
+      this.ui.showToast(`Crafted: ${BLOCKS[id].name}${count > 1 ? ' ×' + count : ''}`);
+      this.audio.pop();
+      return;
+    }
+    // Find first empty slot
+    const empty = this.hotbar.findIndex((v) => !v || v === B.AIR);
+    if (empty !== -1) {
+      this.hotbar[empty] = id;
+      this.ui.updateHotbar(this.hotbar, this.selected);
+      this.ui.showToast(`Crafted: ${BLOCKS[id].name}${count > 1 ? ' ×' + count : ''}`);
+      this.audio.pop();
+      return;
+    }
+    // Overwrite selected slot
+    this.hotbar[this.selected] = id;
+    this.ui.updateHotbar(this.hotbar, this.selected);
+    this.ui.showToast(`Crafted: ${BLOCKS[id].name}${count > 1 ? ' ×' + count : ''}`);
+    this.audio.pop();
   }
 
   // ============================================================
@@ -369,7 +433,7 @@ class Game {
         this.world.viewRadius = value;
         this.sky.setViewDistance(value);
         break;
-      case 'fov': break; // applied smoothly each frame
+      case 'fov': break;
       case 'vol': this.audio.setVolume(value / 100); break;
       case 'music': this.audio.setMusicOn(value); break;
       case 'clouds': this.sky.setCloudsVisible(value); break;
@@ -399,7 +463,7 @@ class Game {
       if (!this.locked) {
         this.mining = false;
         this.rmbHeld = false;
-        if (this.state === 'playing' && !this.pickerOpen) this.pause();
+        if (this.state === 'playing' && !this.pickerOpen && !this.craftOpen) this.pause();
       }
     });
 
@@ -421,12 +485,21 @@ class Game {
       }
       this.keys.add(e.code);
 
+      // Close crafting with E or Escape
+      if (this.state === 'playing' && this.craftOpen && (e.code === 'KeyE' || e.code === 'KeyC' || e.code === 'Escape')) {
+        e.preventDefault();
+        this.closeCrafting();
+        return;
+      }
+
+      // Close picker with E or Escape
       if (this.state === 'playing' && this.pickerOpen && (e.code === 'KeyE' || e.code === 'Escape')) {
         e.preventDefault();
         this.closePicker(true);
         return;
       }
-      if (this.state !== 'playing' || this.pickerOpen) return;
+
+      if (this.state !== 'playing' || this.pickerOpen || this.craftOpen) return;
 
       switch (e.code) {
         case 'F3':
@@ -437,6 +510,10 @@ class Game {
         case 'KeyE':
           e.preventDefault();
           this.openPicker();
+          break;
+        case 'KeyC':
+          e.preventDefault();
+          this.openCrafting();
           break;
         case 'KeyF':
           this.player.flying = !this.player.flying;
@@ -481,7 +558,7 @@ class Game {
     });
 
     document.addEventListener('mousedown', (e) => {
-      if (this.state !== 'playing' || this.pickerOpen) return;
+      if (this.state !== 'playing' || this.pickerOpen || this.craftOpen) return;
       if (!this.locked) { this.lockPointer(); return; }
       if (e.button === 0) {
         this.mining = true;
@@ -565,7 +642,6 @@ class Game {
   updateInteraction(dt) {
     const target = this.currentTarget();
 
-    // ---- outline ----
     if (target) {
       this.outline.visible = true;
       this.outline.position.set(target.x + 0.5, target.y + 0.5, target.z + 0.5);
@@ -573,7 +649,6 @@ class Game {
       this.outline.visible = false;
     }
 
-    // ---- mining ----
     if (this.mining && target) {
       const key = `${target.x},${target.y},${target.z}`;
       if (this.miningCell !== key) {
@@ -584,7 +659,7 @@ class Game {
       if (def.hardness !== Infinity) {
         const speed = this.player.headInWater ? 0.35 : 1;
         this.miningProgress += dt * speed;
-        if (this.swingT > 0.7) this.swing(); // keep punching
+        if (this.swingT > 0.7) this.swing();
         const frac = Math.min(1, this.miningProgress / def.hardness);
         const stage = Math.min(7, Math.floor(frac * 8));
         if (frac > 0.02 && def.hardness > 0.12) {
@@ -598,7 +673,7 @@ class Game {
         if (this.miningProgress >= def.hardness) {
           this.breakBlock(target);
           this.miningCell = null;
-          this.miningProgress = -0.08; // tiny grace before next block
+          this.miningProgress = -0.08;
           this.crack.visible = false;
         }
       } else {
@@ -609,7 +684,6 @@ class Game {
       if (!this.mining) { this.miningProgress = 0; this.miningCell = null; }
     }
 
-    // ---- place repeat ----
     if (this.rmbHeld) {
       this.placeTimer -= dt;
       if (this.placeTimer <= 0) {
@@ -651,13 +725,12 @@ class Game {
     if (cellId !== B.AIR && !cellDef.replaceable) return;
     if (def.solid && this.player.intersectsCell(cx, cy, cz)) return;
 
-    // support rules
     const below = this.world.getBlock(cx, cy - 1, cz);
     if (def.support === 'floor') {
       if (id === B.TORCH) {
         if (!BLOCKS[below].solid) return;
       } else if (below !== B.GRASS && below !== B.DIRT && below !== B.SNOW_GRASS && below !== B.SAND) {
-        return; // plants need soil
+        return;
       }
     }
     if (def.support === 'sand' && below !== B.SAND && below !== B.CACTUS) return;
@@ -676,7 +749,7 @@ class Game {
   }
 
   // ============================================================
-  // Support / gravity checks (queued by world.setBlock)
+  // Support / gravity checks
   // ============================================================
 
   processSupportChecks() {
@@ -705,7 +778,7 @@ class Game {
   }
 
   // ============================================================
-  // Held block (first-person view model)
+  // Held block
   // ============================================================
 
   heldGeometry(id) {
@@ -746,7 +819,7 @@ class Game {
   }
 
   // ============================================================
-  // Icons (rendered with the real block geometry + atlas)
+  // Icons
   // ============================================================
 
   makeIcons() {
@@ -779,7 +852,6 @@ class Game {
       this.renderer.setRenderTarget(null);
       iconScene.remove(mesh);
 
-      // flip vertically + linear -> sRGB-ish gamma
       const img = ctx.createImageData(SIZE, SIZE);
       for (let y = 0; y < SIZE; y++) {
         const src = (SIZE - 1 - y) * SIZE * 4;
@@ -803,7 +875,6 @@ class Game {
   // ============================================================
 
   frame(t) {
-    // never let a single bad frame kill the whole game loop
     try {
       this.frameInner(t);
     } catch (err) {
@@ -817,7 +888,6 @@ class Game {
     const dt = Math.min(0.1, (t - this.lastT) / 1000);
     this.lastT = t;
 
-    // fps tracking
     this.fpsAccum += dt;
     this.fpsFrames++;
     if (this.fpsAccum >= 0.5) {
@@ -830,7 +900,7 @@ class Game {
       case 'title': this.frameTitle(dt); break;
       case 'loading': this.frameLoading(dt); break;
       case 'playing': this.framePlaying(dt); break;
-      case 'paused': break; // fully frozen, like MC singleplayer
+      case 'paused': break;
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -838,7 +908,6 @@ class Game {
     this.lastDrawInfo.triangles = this.renderer.info.render.triangles;
 
     if (this.state === 'playing') {
-      // overlay pass: keep the world pixels, only reset depth
       this.renderer.autoClear = false;
       this.renderer.clearDepth();
       this.renderer.render(this.handScene, this.handCamera);
@@ -871,8 +940,7 @@ class Game {
   framePlaying(dt) {
     const p = this.player;
 
-    // ---- input snapshot ----
-    const inputActive = !this.pickerOpen;
+    const inputActive = !this.pickerOpen && !this.craftOpen;
     const input = {
       forward: inputActive && this.keys.has('KeyW'),
       back: inputActive && this.keys.has('KeyS'),
@@ -885,16 +953,13 @@ class Game {
       (this.keys.has('ControlLeft') || this.keys.has('ControlRight') || this.sprintLatch);
     p.sprinting = wantSprint && input.forward && !input.sneak;
 
-    // ---- simulate ----
     p.update(dt, input);
 
-    // void rescue
     if (p.pos.y < -14) {
       p.teleport(this.spawn.x, Math.max(this.spawn.y + 2, 70), this.spawn.z);
       p.vel.set(0, 0, 0);
     }
 
-    // ---- player audio events ----
     for (const ev of p.events) {
       if (ev.type === 'step') this.audio.step(ev.id);
       else if (ev.type === 'land') { this.audio.land(ev.impact); if (ev.impact > 22) this.ui.flashDamage(); }
@@ -902,15 +967,13 @@ class Game {
     }
     p.events.length = 0;
 
-    // ---- interaction & world streaming ----
-    if (this.locked && !this.pickerOpen) this.updateInteraction(dt);
+    if (this.locked && !this.pickerOpen && !this.craftOpen) this.updateInteraction(dt);
     else { this.outline.visible = false; this.crack.visible = false; }
 
     this.world.update(p.pos.x, p.pos.z, 5);
     this.processSupportChecks();
     this.entities.update(dt);
 
-    // ---- camera ----
     const eye = p.eyePosition(new THREE.Vector3());
     let bobY = 0, bobRoll = 0;
     if (this.settings.bob && !p.flying) {
@@ -926,7 +989,6 @@ class Game {
     );
     this.camera.rotation.set(p.pitch, p.yaw, bobRoll);
 
-    // smooth FOV (sprint kick)
     const targetFov = this.settings.fov * (p.sprinting ? (p.flying ? 1.18 : 1.12) : 1);
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, 10 * dt);
     if (Math.abs(this.fovCurrent - this.camera.fov) > 0.05) {
@@ -934,7 +996,6 @@ class Game {
       this.camera.updateProjectionMatrix();
     }
 
-    // ---- environment ----
     this.sky.setUnderwater(p.headInWater);
     this.ui.setUnderwater(p.headInWater);
     this.sky.update(dt, this.camera.position);
@@ -943,14 +1004,12 @@ class Game {
 
     this.updateHand(dt);
 
-    // ---- autosave ----
     this.autosaveTimer += dt;
     if (this.autosaveTimer > 6) {
       this.autosaveTimer = 0;
       this.saveWorld();
     }
 
-    // ---- debug ----
     if (this.debugVisible) {
       this.debugTimer -= dt;
       if (this.debugTimer <= 0) {
@@ -981,6 +1040,7 @@ class Game {
       `Draw calls: ${this.lastDrawInfo.calls}   Tris: ${(this.lastDrawInfo.triangles / 1000).toFixed(1)}k`,
       `Flags: ${p.onGround ? 'ground ' : ''}${p.flying ? 'flying ' : ''}${p.inWater ? 'water ' : ''}${p.sprinting ? 'sprint ' : ''}${p.sneaking ? 'sneak' : ''}`,
       target ? `Target: ${BLOCKS[target.id].name} @ ${target.x} ${target.y} ${target.z}` : 'Target: —',
+      `Crafting: ${this.craftOpen ? 'open' : 'closed (C to open)'}`,
     ].join('\n');
   }
 }
@@ -991,7 +1051,7 @@ const t_now = () => performance.now() / 1000;
 
 window.addEventListener('DOMContentLoaded', () => {
   try {
-    window.game = new Game(); // exposed for debugging / tinkering
+    window.game = new Game();
   } catch (err) {
     console.error('Failed to start:', err);
     document.getElementById('webgl-error')?.classList.remove('hidden');
