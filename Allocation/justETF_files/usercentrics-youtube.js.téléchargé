@@ -1,0 +1,144 @@
+/**
+ * Usercentrics V3 YouTube Facade Controller (ES5 Compatible)
+ * Handles consent state, facade toggling, and lazy-load orchestration.
+ */
+(function() {
+    'use strict';
+
+    // Constants (using var for ES5 compatibility)
+    var SERVICE_ID = 'BJz7qNsdj-7';   // Stable ID for YouTube
+    var SELECTOR = '.uc-youtube-wrapper';
+
+    // 1. Central State Handler
+    function handleConsentState(isConsented) {
+        var wrappers = document.querySelectorAll(SELECTOR);
+        
+        // Using a for-loop instead of forEach for maximum compatibility
+        for (var i = 0; i < wrappers.length; i++) {
+            var wrapper = wrappers[i];
+            if (isConsented) {
+                // Scenario A: Consent Given
+                activateVideo(wrapper);
+            } else {
+                // Scenario B: Consent Revoked (rare but possible)
+                deactivateVideo(wrapper);
+            }
+        }
+    }
+
+    // 2. Activation Logic (Hydration)
+    function activateVideo(wrapper) {
+        // Prevent double-activation
+        if (wrapper.getAttribute('data-active') === 'true') return;
+
+        var template = wrapper.querySelector('template');
+        var facade = wrapper.querySelector('.uc-facade');
+        
+        if (template) {
+            // Clone the video container includig the iframe from template
+            // Note: IE11 might need a polyfill for template.content, but most modern contexts are fine.
+            // If strictly needed for very old browsers, we grab innerHTML.
+            var videoContainerContent = template.content? template.content.cloneNode(true) : null;
+            
+            // Fallback for older browsers if template.content is undefined
+            if (!videoContainerContent) {
+                var div = document.createElement('div');
+                div.innerHTML = template.innerHTML;
+                videoContainerContent = div.firstElementChild; 
+            }
+
+            // Find the iframe inside the container
+            var iframe = videoContainerContent.querySelector('iframe');
+            
+            // LazySizes handover - enablign lazyload for enabled iframes
+            if (iframe) {
+                if (iframe.classList.contains('lazy-consent-pending')) {
+                    iframe.classList.remove('lazy-consent-pending');
+                    iframe.classList.add('lazyload');
+                }
+            } else {
+                console.warn('Usercentrics: Could not find iframe in template.');
+            }
+
+            // Append to DOM
+            wrapper.appendChild(videoContainerContent);
+            wrapper.setAttribute('data-active', 'true');
+            
+            // Hide/Remove Facade
+            if (facade) facade.style.display = 'none';
+        }
+    }
+
+    // 3. Deactivation Logic
+    function deactivateVideo(wrapper) {
+        if (wrapper.getAttribute('data-active')!== 'true') return;
+        
+        // Remove video container including the iframe to stop connection
+        var videoContainer = wrapper.querySelector('.video-container');
+        if (videoContainer && videoContainer.parentNode) videoContainer.parentNode.removeChild(videoContainer);
+        
+        // Show Facade
+        var facade = wrapper.querySelector('.uc-facade');
+        if (facade) facade.style.display = 'block';
+        
+        wrapper.setAttribute('data-active', 'false');
+    }
+
+    // 4. Usercentrics Event Listener
+    window.addEventListener('UC_CONSENT', function(e) {
+        console.log('UC_CONSENT processing for Youtube. Event detail.', e.detail);
+
+        // Access the Youtube service directly by its ID as a key in the object
+        var youTubeService = e.detail.services[SERVICE_ID];
+
+        // Safely get its consent status
+        var youTubeServiceConsentStatus = youTubeService && 
+                                  youTubeService.consent && 
+                                  youTubeService.consent.given;
+
+        console.log('Processing Youtube service consent status:', youTubeServiceConsentStatus);
+
+        handleConsentState(youTubeServiceConsentStatus);
+    });
+
+    // 5. Facade Click Handlers (User Interaction)
+    document.addEventListener('click', function(e) {
+        var target = e.target;
+        
+        // Helper to check classes (ES5 safe)
+        function hasClass(el, cls) {
+            return el && el.classList && el.classList.contains(cls);
+        }
+
+        // 1. Handle "Accept" Button
+        if (hasClass(target, 'uc-accept-btn')) {
+            
+            if (window.__ucCmp) {
+                // First updating the consent and once it is done saving it
+                window.__ucCmp.updateServicesConsents([{id: SERVICE_ID, consent: true}]).then(function() {
+                    console.log('Updated and now saving the acceptance of Youtube consent...');
+                    // Saving updated consent after successful update 
+                    window.__ucCmp.saveConsents().then(function() {
+                        console.log('Saved Youtube consent');
+                    })['catch'](function(err) {
+                        console.error('Consent saving failed', err);
+                    });
+                })['catch'](function(err) {
+                    console.error('Consent udate failed', err);
+                });
+            } else console.error('Cannot update and save consents');            
+        }
+
+        // 2. Handle "More Information" Button
+        if (hasClass(target, 'uc-info-btn')) {
+            if (window.__ucCmp) {
+                window.__ucCmp.showServiceDetails(SERVICE_ID).then(function() {
+                    console.log('Displayed Youtube DPS details');
+                })['catch'](function(err) {
+                    console.error('Cannot display Youtube DPS details', err);
+                });
+            } else console.error('Cannot display Youtube DPS details');   
+        }
+    });
+
+})();
